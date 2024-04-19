@@ -1,0 +1,169 @@
+References :
+
+Wireless Trace generation
+wifiPhyHelper.EnableAsciiAll("l7r1-50Mbps.tr");
+
+Config::SetDefault("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpNewReno"));
+
+AsciiTraceHelper ascii;
+csma.EnableAsciiAll (ascii.CreateFileStream ("csma-multicast.tr"));
+How to get trace file of full scenario? (Point-to-point and CSMA)
+AsciiTraceHelper ascii;
+Ptr<OutputStreamWrapper> stream = ascii.CreateFileStream ("mixed-global-routing.tr");
+p2p.EnableAsciiAll (stream);
+csma.EnableAsciiAll (stream);
+
+Awk files (throughput) - for a specific node
+BEGIN {
+    packet_count = 0;
+    for (i = 7; i <= 12; i++) {
+        bandwidth[i] = 0;
+    }
+}
+
+{
+    action = $1;
+    time = $2;
+    src_node = $7;
+    dst_node = $8;
+    pktsize = $28;
+    packet_id = $19;
+
+    if (action == "r" && src_node == "N11") {
+        if (time >= 7 && time <= 12) {
+            throughput = pktsize * 8 / (time - start_time);
+            printf("%f\t%f\n", time, throughput);
+        }
+    }
+}
+
+END {
+    # No action needed here
+}
+
+
+(delay) 
+Plot the graph of node N10 for packet delay between N1 to N10 from 4th to 12th second.
+
+BEGIN {
+    Packet_count = 0;
+    Aggergate_delay = 0;
+    count = 0;
+}
+
+{
+    action = $1;
+    time = $2;
+    src_node = $7;
+    dst_node = $9;
+    packet_id = $19;
+
+    if (action == "r" && src_node == "N1" && dst_node == "N10" && time >= 4 && time <= 12) {
+        end_time[packet_id] = time;
+        if (start_time[packet_id] != 0) {
+            delay = end_time[packet_id] - start_time[packet_id];
+            if (delay > 0) {
+                Aggergate_delay += delay;
+                count++;
+                Average_delay = Aggergate_delay / count;
+                print end_time[packet_id], Average_delay;
+            }
+        }
+    }
+
+    if (action == "s" && src_node == "N1" && dst_node == "N10") {
+        start_time[packet_id] = time;
+        Packet_count++;
+    }
+}
+
+END {
+    # No need to loop through packets here
+}
+
+
+TCP NEW RENO CODE
+// n0    n1      n3     n4       n5
+// |    |      |     |       |
+// |    |      |     |       |
+//=============================
+
+#include "ns3/core-module.h"
+#include "ns3/network-module.h"
+#include "ns3/csma-module.h"
+#include "ns3/internet-module.h"
+#include "ns3/point-to-point-module.h"
+#include "ns3/applications-module.h"
+#include "ns3/ipv4-global-routing-helper.h"
+#include "ns3/netanim-module.h"
+using namespace ns3;
+
+NS_LOG_COMPONENT_DEFINE ("l5q1");
+int main(int argc, char *argv[]){
+  LogComponentEnable("l5q1",LOG_LEVEL_INFO);
+
+  //uint32_t nCsma = 5;
+uint32_t maxBytes = 512;
+ std::string datarate="0.5Mbps";
+  std::string delay="2ms";
+/*
+  CommandLine cmd (__FILE__);
+  cmd.AddValue ("maxBytes",
+                "Total number of bytes for application to send", maxBytes);
+    cmd.AddValue ("datarate",
+                "the datarate", datarate);
+    cmd.AddValue ("delay",
+                "the delay", delay);
+  cmd.Parse (argc, argv);
+  */
+  
+  NodeContainer csmaNodes;
+  csmaNodes.Create(5);
+
+  CsmaHelper csma;
+  csma.SetChannelAttribute ("DataRate", StringValue ("100Mbps"));
+  csma.SetChannelAttribute ("Delay", TimeValue (NanoSeconds (6560)));
+
+  NetDeviceContainer csmaDevices;
+  csmaDevices = csma.Install (csmaNodes);
+
+  InternetStackHelper stack;
+  stack.Install (csmaNodes);
+
+  Ipv4AddressHelper address;
+  address.SetBase ("10.1.2.0", "255.255.255.0");
+  Ipv4InterfaceContainer csmaInterfaces;
+  csmaInterfaces = address.Assign (csmaDevices);
+  Config::SetDefault("ns3::TcpL4Protocol::SocketType",    StringValue("ns3::TcpNewReno"));
+
+  uint16_t port = 9; // well-known echo port number
+  BulkSendHelper source ("ns3::TcpSocketFactory",
+  InetSocketAddress (csmaInterfaces.GetAddress (1), port));
+  // Set the amount of data to send in bytes. Zero is unlimited.
+  source.SetAttribute ("MaxBytes", UintegerValue (maxBytes));
+  ApplicationContainer sourceApps = source.Install (csmaNodes.Get (0));
+  sourceApps.Start (Seconds (0.0));
+  sourceApps.Stop (Seconds (10.0));
+
+  PacketSinkHelper sink ("ns3::TcpSocketFactory",
+  InetSocketAddress (Ipv4Address::GetAny (), port));
+  ApplicationContainer sinkApps = sink.Install (csmaNodes.Get (1));
+  sinkApps.Start (Seconds (0.0));
+  sinkApps.Stop (Seconds (10.0));
+
+  NS_LOG_INFO ("Run Simulation.");
+
+  AnimationInterface anim("l5q1.xml");
+  anim.SetConstantPosition ( csmaNodes.Get(0), 1, 2);
+  anim.SetConstantPosition (csmaNodes.Get(1), 2, 2);
+  AsciiTraceHelper ascii;
+  csma.EnableAsciiAll (ascii.CreateFileStream ("l5q1.tr"));
+  Simulator::Stop (Seconds (10.0));
+  Simulator::Run ();
+  Simulator::Destroy ();
+  NS_LOG_INFO ("Done.");
+  Ptr<PacketSink> sink1 = DynamicCast<PacketSink> (sinkApps.Get (0));
+  std::cout << "Total Bytes Received: " << sink1->GetTotalRx () << std::endl;
+
+  return 0;
+}
