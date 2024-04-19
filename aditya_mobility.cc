@@ -251,3 +251,16 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+
+/*OnOffHelper clientHelper ("ns3::UdpSocketFactory", Address (InetSocketAddress(p2pInterfaces.GetAddress(0), 9)));
+clientHelper.SetAttribute ("Remote", remoteAddress);
+ApplicationContainer clientApps = (clientHelper.Install (p2pNodes1.Get(0));
+clientApps.Start (Seconds (2.0));
+clientApps.Stop (Seconds (9.0));
+
+Address sinkLocalAddress(InetSocketAddress (Ipv4Address::GetAny (), 9));
+PacketSinkHelper sinkHelper ("ns3::UdpSocketFactory", sinkLocalAddress);
+ApplicationContainer sinkApp = sinkHelper.Install (p2pNodes.Get(1));
+sinkApp.Start (Seconds (1.0));
+sinkApp.Stop (Seconds (10.0));
+*/
